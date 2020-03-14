@@ -198,6 +198,7 @@ func (r *Resolver) doresolve(c net.Conn, hostChan chan string, resultChan chan r
 		res.Results = nil
 		time.Sleep(r.delay)
 	}
+	c.Close()
 }
 
 // creates a new dns message and returns it
