@@ -1,10 +1,11 @@
 # reckdns
-reckdns is a recursive (kinda reckless) dns resolver. This is **still in development**
+A recursive (kinda reckless) dns resolver. **This is still under development**
 
 ## installation:
 via `go get`
+
 ```bash
-▻  go get github.com/lc/reckdns
+▻ go get github.com/lc/reckdns
 ```
 
 from repo:
@@ -15,6 +16,6 @@ from repo:
 
 ## usage:
 ```bash
-▻  printf 'www.yahoo.com\nwww.google.com\nwww.amazon.com'  | reckdns -r resolvers.txt -t 1
+▻ printf 'www.yahoo.com\nwww.google.com\nwww.amazon.com'  | reckdns -r resolvers.txt 
 ▻ reckdns -r resolvers.txt -i hosts.txt
 ```
