@@ -98,12 +98,12 @@ func (r *Resolver) Resolve() error {
 	resultWg.Add(1)
 	go func() {
 		for res := range resultChan {
-			fmt.Printf("%s -> ", res.Host)
+			fmt.Printf("%s ->", res.Host)
 			for _, result := range res.Results {
 				if result.CNAME {
-					fmt.Printf("%s -> ", result.record)
+					fmt.Printf(" %s ->", result.record)
 				} else {
-					fmt.Printf("%s ", result.record)
+					fmt.Printf(" %s", result.record)
 				}
 			}
 			fmt.Println()
