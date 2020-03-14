@@ -1,5 +1,5 @@
 # reckdns
-A recursive (kinda reckless) dns resolver. **This is VERYYY much still under development**
+A kinda reckless dns resolver. **This is VERYYY much still under development**
 
 ## installation:
 via `go get`

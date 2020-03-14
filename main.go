@@ -18,7 +18,7 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, strings.Join([]string{
-			"reckdns - recursive (kinda reckless) dns resolver",
+			"reckdns - a kinda reckless dns resolver",
 			"",
 			"Usage: reckdns [options ...]",
 			"",
