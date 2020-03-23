@@ -328,7 +328,7 @@ func (r *Resolver) NormalOutput(res result) string {
 			output = append(output, fmt.Sprintf(" %s", result.record))
 		}
 	}
-	o := strings.Join(output, " ")
+	o := strings.Join(output, "")
 	return o
 }
 func (r *Resolver) JsonOutput(res result) ([]byte, error) {
