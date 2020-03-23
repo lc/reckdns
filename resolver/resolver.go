@@ -2,17 +2,26 @@ package resolver
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/lc/safewrite"
+
 	"github.com/miekg/dns"
 )
 
+type JsonOutput struct {
+	Domain string   `json:"domain"`
+	CNAME  []string `json:"CNAME"`
+	A      []string `json:"A"`
+}
 type dnsrecord struct {
 	CNAME  bool
 	record string
@@ -25,18 +34,23 @@ type toResolve struct {
 	Host string
 }
 type Resolver struct {
+	JsonOut       bool
 	Input         string
 	Resolvers     []string
 	ResolversFile string
 	Concurrency   int
 	Hosts         []string
+	OutputFile    string
 	ReadTimeout   time.Duration // defaults to 2 seconds
 	WriteTimeout  time.Duration // defaults to 2 seconds
 	delay         time.Duration // defaults 5 milliseconds (5000000 nano seconds)
 }
 
 func New() *Resolver {
-	return &Resolver{ReadTimeout: time.Second * 2, WriteTimeout: time.Second * 2}
+	return &Resolver{ReadTimeout: time.Second * 2, WriteTimeout: time.Second * 2, JsonOut: false}
+}
+func (r *Resolver) EnableJsonOutput() {
+	r.JsonOut = true
 }
 func (r *Resolver) SetResolversFile(ResolversFile string) error {
 	if _, err := os.Stat(ResolversFile); err != nil {
@@ -71,6 +85,7 @@ func (r *Resolver) Resolve() error {
 	if err := r.readResolvers(); err != nil {
 		return err
 	}
+	var appender safewrite.SafeAppend
 	var jobWg, resultWg sync.WaitGroup
 	jobChan := make(chan string)
 	resultChan := make(chan result)
@@ -83,7 +98,7 @@ func (r *Resolver) Resolve() error {
 				c, err := net.Dial("udp", resolver)
 				if err != nil {
 					if strings.Contains(err.Error(), "too many open files") {
-						time.Sleep(time.Second * 5)
+						log.Fatal(err)
 					} else {
 						fmt.Fprintf(os.Stderr, "bind(udp,%s) error: %v", resolver, err)
 						continue
@@ -96,20 +111,43 @@ func (r *Resolver) Resolve() error {
 	}
 
 	resultWg.Add(1)
-	go func() {
-		for res := range resultChan {
-			fmt.Printf("%s ->", res.Host)
-			for _, result := range res.Results {
-				if result.CNAME {
-					fmt.Printf(" %s ->", result.record)
+	if r.OutputFile != "" {
+		outfp, err := os.OpenFile(r.OutputFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			return err
+		}
+		wr := safewrite.NewWriter(outfp)
+		appender = safewrite.NewAppender(wr)
+	}
+	if r.JsonOut == false {
+		go func() {
+			for res := range resultChan {
+				o := r.NormalOutput(res)
+				if r.OutputFile != "" {
+					appender.Append([]byte(o))
 				} else {
-					fmt.Printf(" %s", result.record)
+					fmt.Println(o)
 				}
 			}
-			fmt.Println()
-		}
-		resultWg.Done()
-	}()
+			resultWg.Done()
+		}()
+	} else {
+		go func() {
+			for res := range resultChan {
+				fin, err := r.JsonOutput(res)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "error marshalling output: %v", err)
+					continue
+				}
+				if r.OutputFile != "" {
+					appender.Append(fin)
+				} else {
+					fmt.Println(string(fin))
+				}
+			}
+			resultWg.Done()
+		}()
+	}
 	var b *bufio.Scanner
 	switch r.Input {
 	case "":
@@ -279,4 +317,33 @@ func isDomainName(s string) bool {
 	}
 
 	return ok
+}
+func (r *Resolver) NormalOutput(res result) string {
+	var output []string
+	output = append(output, fmt.Sprintf("%s ->", res.Host))
+	for _, result := range res.Results {
+		if result.CNAME {
+			output = append(output, fmt.Sprintf(" %s ->", result.record))
+		} else {
+			output = append(output, fmt.Sprintf(" %s", result.record))
+		}
+	}
+	o := strings.Join(output, " ")
+	return o
+}
+func (r *Resolver) JsonOutput(res result) ([]byte, error) {
+	out := JsonOutput{}
+	out.Domain = res.Host
+	for _, result := range res.Results {
+		if result.CNAME {
+			out.CNAME = append(out.CNAME, result.record)
+		} else {
+			out.A = append(out.A, result.record)
+		}
+	}
+	fin, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling output: %v", err)
+	}
+	return fin, nil
 }
